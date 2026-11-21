@@ -1,0 +1,15 @@
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\LibreTV.Switch.GeneratedMSBuildEditorConfig.editorconfig
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\LibreTV.Switch.AssemblyInfoInputs.cache
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\LibreTV.Switch.AssemblyInfo.cs
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\LibreTV.Switch.csproj.CoreCompileInputs.cache
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\LibreTV.Switch.sourcelink.json
+E:\tv\desktop\LibreTV.Switch\bin\Release\net9.0-windows\win-x64\LibreTV开关.exe
+E:\tv\desktop\LibreTV.Switch\bin\Release\net9.0-windows\win-x64\LibreTV开关.deps.json
+E:\tv\desktop\LibreTV.Switch\bin\Release\net9.0-windows\win-x64\LibreTV开关.runtimeconfig.json
+E:\tv\desktop\LibreTV.Switch\bin\Release\net9.0-windows\win-x64\LibreTV开关.dll
+E:\tv\desktop\LibreTV.Switch\bin\Release\net9.0-windows\win-x64\LibreTV开关.pdb
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\LibreTV开关.dll
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\refint\LibreTV开关.dll
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\LibreTV开关.pdb
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\LibreTV.Switch.genruntimeconfig.cache
+E:\tv\desktop\LibreTV.Switch\obj\Release\net9.0-windows\win-x64\ref\LibreTV开关.dll

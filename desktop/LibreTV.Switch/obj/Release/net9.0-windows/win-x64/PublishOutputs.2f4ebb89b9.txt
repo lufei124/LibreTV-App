@@ -1,0 +1,5 @@
+e:\tv\desktop\publish\LibreTV开关.exe
+e:\tv\desktop\publish\LibreTV开关.dll
+e:\tv\desktop\publish\LibreTV开关.deps.json
+e:\tv\desktop\publish\LibreTV开关.runtimeconfig.json
+e:\tv\desktop\publish\LibreTV开关.pdb

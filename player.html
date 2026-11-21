@@ -70,6 +70,22 @@
             </div>
         </div>
 
+        <!-- 投屏遥控条 -->
+        <div id="castBar" class="player-container hidden">
+            <div class="mt-3 p-3 rounded-lg border border-[#00ccff] bg-[#0f2533]">
+                <div class="flex items-center justify-between gap-2 mb-3">
+                    <span id="castStatusText" class="text-sm text-[#00ccff] truncate"></span>
+                    <span id="castTime" class="text-xs text-gray-400 flex-shrink-0"></span>
+                </div>
+                <div class="grid grid-cols-4 gap-2">
+                    <button id="castBackBtn" class="py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg text-sm">-30秒</button>
+                    <button id="castPauseBtn" class="py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg text-sm">暂停</button>
+                    <button id="castForwardBtn" class="py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg text-sm">+30秒</button>
+                    <button id="castStopBtn" class="py-2 bg-[#3a1520] hover:bg-[#4a1a28] border border-[#ff6b8b] text-[#ff6b8b] rounded-lg text-sm">停止投屏</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 集数导航 -->
         <div class="player-container">
             <div class="flex justify-between items-center my-4">
@@ -103,6 +119,13 @@
                 
                 <!-- 把各种功能按钮放在右侧 - 在小屏幕上各自占一行 -->
                 <div class="flex flex-wrap justify-end gap-2">
+                    <button id="castOpenBtn" title="投到电视" class="px-3 py-1 bg-[#00ccff] hover:bg-[#33d6ff] text-[#08101c] font-medium rounded-lg transition flex items-center gap-1 flex-shrink-0">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7a2 2 0 012-2h14a2 2 0 012 2v9a2 2 0 01-2 2h-5M3 12a6 6 0 016 6M3 15.5A2.5 2.5 0 015.5 18M3 18h.01"></path>
+                        </svg>
+                        <span>投到电视</span>
+                    </button>
+
                     <!-- 倒序排列按钮 -->
                     <button onclick="toggleEpisodeOrder()" class="px-3 py-1 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors flex items-center space-x-1 flex-shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" id="orderIcon" viewBox="0 0 20 20" fill="currentColor">
@@ -193,6 +216,19 @@
     <script src="js/password.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/player.js"></script>
+    <script src="js/cast.js"></script>
+
+    <!-- 投屏选择电视 -->
+    <div id="castModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[70] p-4">
+        <div class="bg-[#111] border border-[#333] rounded-lg w-full max-w-sm p-5">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold gradient-text">投到电视</h3>
+                <button id="castCloseBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+            </div>
+            <div id="castDeviceList" class="max-h-72 overflow-y-auto"></div>
+            <button id="castRefreshBtn" class="mt-2 w-full py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg text-sm">重新搜索</button>
+        </div>
+    </div>
 
     <script>
         // 创建全局环境变量对象
