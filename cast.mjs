@@ -7,7 +7,12 @@ const SSDP_PORT = 1900;
 const AVTRANSPORT = 'urn:schemas-upnp-org:service:AVTransport:1';
 const DEVICE_TTL_MS = 10 * 60 * 1000;
 
+const MONITOR_INTERVAL_MS = 3000;
+const END_MARGIN_SECONDS = 20;
+
 const devices = new Map();
+const sessions = new Map();
+let monitorTimer = null;
 let serverPort = 8899;
 
 export function configure({ port }) {
@@ -147,7 +152,7 @@ export async function discoverDevices({ refresh = false } = {}) {
 }
 
 function getDevice(id) {
-  const device = devices.get(id);
+  const device = devices.get(id) || sessions.get(id)?.device;
   if (!device) {
     throw Object.assign(new Error('找不到这台电视，请重新搜索。'), { status: 404 });
   }
@@ -228,12 +233,38 @@ async function adFreeUrl(device, url) {
   return `http://${address}:${serverPort}/api/hls/${encodeToken(url)}/index.m3u8`;
 }
 
-export async function play(deviceId, { url: sourceUrl, title = 'LibreTV', position = 0, adFilter = true }) {
-  if (!/^https?:\/\//i.test(sourceUrl || '')) {
+export async function play(deviceId, {
+  url,
+  title = 'LibreTV',
+  position = 0,
+  adFilter = true,
+  episodes = [],
+  index = 0,
+  seriesTitle = title,
+  autoNext = false,
+}) {
+  if (!/^https?:\/\//i.test(url || '')) {
     throw Object.assign(new Error('播放地址无效。'), { status: 400 });
   }
 
   const device = getDevice(deviceId);
+  const validEpisodes = Array.isArray(episodes) && episodes.every((item) => /^https?:\/\//i.test(item)) ? episodes : [];
+  sessions.set(device.id, {
+    device,
+    episodes: validEpisodes,
+    index: Number(index) || 0,
+    seriesTitle,
+    adFilter,
+    autoNext: Boolean(autoNext) && validEpisodes.length > 1,
+    ...freshPlayback(),
+  });
+  ensureMonitor();
+
+  const result = await startMedia(device, { url, title, position, adFilter });
+  return { ...result, index: sessions.get(device.id)?.index ?? null };
+}
+
+async function startMedia(device, { url: sourceUrl, title, position, adFilter }) {
   await soap(device, 'Stop', { InstanceID: 0 }).catch(() => {});
 
   const isHls = /\.m3u8(\?|$)/i.test(sourceUrl);
@@ -272,8 +303,104 @@ export async function play(deviceId, { url: sourceUrl, title = 'LibreTV', positi
   return { device: device.name, adFiltered: Boolean(filteredUrl) };
 }
 
+function freshPlayback() {
+  return { sawPlaying: false, lastPosition: 0, lastDuration: 0, endHits: 0, busy: false };
+}
+
+function episodeTitle(session) {
+  return session.episodes.length > 1
+    ? `${session.seriesTitle} 第${session.index + 1}集`
+    : session.seriesTitle;
+}
+
+async function readState(device) {
+  const [transport, position] = await Promise.all([
+    soap(device, 'GetTransportInfo', { InstanceID: 0 }),
+    soap(device, 'GetPositionInfo', { InstanceID: 0 }),
+  ]);
+  return {
+    state: xmlText(transport, 'CurrentTransportState'),
+    position: fromTimestamp(xmlText(position, 'RelTime')),
+    duration: fromTimestamp(xmlText(position, 'TrackDuration')),
+  };
+}
+
+async function advance(device, session) {
+  if (session.index + 1 >= session.episodes.length) {
+    console.log(`[cast] ${session.seriesTitle} 已播完最后一集`);
+    session.autoNext = false;
+    return;
+  }
+  session.index += 1;
+  Object.assign(session, freshPlayback(), { busy: true });
+  console.log(`[cast] 自动播放下一集: ${episodeTitle(session)}`);
+  try {
+    await startMedia(device, {
+      url: session.episodes[session.index],
+      title: episodeTitle(session),
+      position: 0,
+      adFilter: session.adFilter,
+    });
+  } catch (error) {
+    console.error('[cast] 自动下一集失败:', error.message);
+  } finally {
+    session.busy = false;
+  }
+}
+
+// The TV may report STOPPED with position 0 once a track ends, so judge the
+// ending from the last position seen while it was still playing.
+async function checkSession(session) {
+  const { device } = session;
+  if (session.busy || !session.autoNext) {
+    return;
+  }
+
+  const info = await readState(device);
+  if (info.state === 'PLAYING' || info.state === 'PAUSED_PLAYBACK') {
+    if (info.position > 0) {
+      session.sawPlaying = true;
+      session.lastPosition = info.position;
+      session.lastDuration = info.duration;
+    }
+    const atEnd = info.state === 'PLAYING' && info.duration > 0 && info.position >= info.duration - 1;
+    session.endHits = atEnd ? session.endHits + 1 : 0;
+    if (session.endHits >= 2) {
+      await advance(device, session);
+    }
+    return;
+  }
+
+  if ((info.state === 'STOPPED' || info.state === 'NO_MEDIA_PRESENT') && session.sawPlaying) {
+    if (session.lastDuration > 0 && session.lastPosition >= session.lastDuration - END_MARGIN_SECONDS) {
+      await advance(device, session);
+    } else {
+      session.sawPlaying = false;
+    }
+  }
+}
+
+function ensureMonitor() {
+  if (monitorTimer) {
+    return;
+  }
+  monitorTimer = setInterval(() => {
+    if (!sessions.size) {
+      clearInterval(monitorTimer);
+      monitorTimer = null;
+      return;
+    }
+    for (const session of sessions.values()) {
+      checkSession(session).catch(() => {});
+    }
+  }, MONITOR_INTERVAL_MS);
+}
+
 export async function control(deviceId, action, seconds) {
   const device = getDevice(deviceId);
+  if (action === 'stop') {
+    sessions.delete(device.id);
+  }
   switch (action) {
     case 'pause':
       await soap(device, 'Pause', { InstanceID: 0 });
@@ -294,14 +421,9 @@ export async function control(deviceId, action, seconds) {
 
 export async function status(deviceId) {
   const device = getDevice(deviceId);
-  const [transport, position] = await Promise.all([
-    soap(device, 'GetTransportInfo', { InstanceID: 0 }),
-    soap(device, 'GetPositionInfo', { InstanceID: 0 }),
-  ]);
-
+  const session = sessions.get(device.id);
   return {
-    state: xmlText(transport, 'CurrentTransportState'),
-    position: fromTimestamp(xmlText(position, 'RelTime')),
-    duration: fromTimestamp(xmlText(position, 'TrackDuration')),
+    ...(await readState(device)),
+    index: session ? session.index : null,
   };
 }

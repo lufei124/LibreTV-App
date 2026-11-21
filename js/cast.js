@@ -102,6 +102,10 @@
                 title: episodeTitle(),
                 position,
                 adFilter: localStorage.getItem(PLAYER_CONFIG.adFilteringStorage) !== 'false',
+                episodes: currentEpisodes,
+                index: currentEpisodeIndex,
+                seriesTitle: currentVideoTitle,
+                autoNext: autoplayEnabled,
             }),
         });
     }
@@ -168,6 +172,9 @@
             if (!state.device) return;
             try {
                 const info = await api(`/api/cast/status?deviceId=${encodeURIComponent(state.device.id)}`);
+                if (typeof info.index === 'number' && info.index !== currentEpisodeIndex) {
+                    followTvEpisode(info.index);
+                }
                 state.position = info.position;
                 state.paused = info.state === 'PAUSED_PLAYBACK';
                 $('castTime').textContent = info.duration
@@ -203,13 +210,32 @@
         $('castPauseBtn').textContent = state.paused ? '继续' : '暂停';
     }
 
+    let switchEpisodeLocally = null;
+
+    function keepLocalPaused() {
+        if (!dp || !dp.video) return;
+        dp.pause();
+        dp.video.addEventListener('playing', () => {
+            if (state.device) dp.pause();
+        }, { once: true });
+    }
+
+    // 电视已由服务端自动换到下一集，页面只同步显示，不再重新投屏
+    function followTvEpisode(index) {
+        if (!switchEpisodeLocally || index < 0 || index >= currentEpisodes.length) return;
+        switchEpisodeLocally(index);
+        keepLocalPaused();
+        showToast(`电视已自动播放第${index + 1}集`);
+    }
+
     function wrapEpisodeSwitch() {
         const original = window.playEpisode;
         if (typeof original !== 'function') return;
+        switchEpisodeLocally = original;
         window.playEpisode = function (index) {
             original(index);
             if (state.device) {
-                if (dp && dp.video) dp.pause();
+                keepLocalPaused();
                 showBar(`正在切换到第${index + 1}集…`);
                 sendCurrent(0)
                     .then(() => updateBar())
