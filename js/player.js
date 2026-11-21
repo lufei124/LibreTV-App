@@ -731,8 +731,7 @@ class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
                 callbacks.onSuccess = function(response, stats, context) {
                     // 如果是m3u8文件，处理内容以移除广告分段
                     if (response.data && typeof response.data === 'string') {
-                        // 过滤掉广告段 - 实现更精确的广告过滤逻辑
-                        response.data = filterAdsFromM3U8(response.data, true);
+                        response.data = filterAdsFromM3U8(response.data, response.url || context.url);
                     }
                     return onSuccess(response, stats, context);
                 };
@@ -744,23 +743,14 @@ class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
 }
 
 // M3U8清单广告过滤函数
-function filterAdsFromM3U8(m3u8Content, strictMode = false) {
+function filterAdsFromM3U8(m3u8Content, baseUrl) {
     if (!m3u8Content) return '';
 
-    // 按行分割M3U8内容
-    const lines = m3u8Content.split('\n');
-    const filteredLines = [];
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-
-        // 只过滤#EXT-X-DISCONTINUITY标识
-        if (!line.includes('#EXT-X-DISCONTINUITY')) {
-            filteredLines.push(line);
-        }
+    const result = window.LibreTVAdFilter.filterPlaylist(m3u8Content, baseUrl || window.location.href);
+    if (result.removedSegments) {
+        console.log(`已过滤 ${result.removedSegments} 个广告分片（${result.removedSeconds.toFixed(1)} 秒）`);
     }
-
-    return filteredLines.join('\n');
+    return result.content;
 }
 
 

@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import proxyHandler from './api/proxy/[...path].mjs';
 import * as cast from './cast.mjs';
+import * as hls from './hls.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const configPath = path.join(__dirname, 'serve-local.config.json');
@@ -82,6 +83,10 @@ app.post('/api/cast/control', express.json(), castRoute(async (req) => {
 }));
 
 app.get('/api/cast/status', castRoute((req) => cast.status(req.query.deviceId)));
+
+app.get('/api/hls/:token/index.m3u8', hls.handle);
+
+cast.configure({ port: PORT });
 
 app.use((req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') {

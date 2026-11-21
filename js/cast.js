@@ -94,13 +94,14 @@
     }
 
     async function sendCurrent(position) {
-        await api('/api/cast/play', {
+        return api('/api/cast/play', {
             method: 'POST',
             body: JSON.stringify({
                 deviceId: state.device.id,
                 url: currentVideoUrl,
                 title: episodeTitle(),
                 position,
+                adFilter: localStorage.getItem(PLAYER_CONFIG.adFilteringStorage) !== 'false',
             }),
         });
     }
@@ -113,13 +114,13 @@
         showBar(`正在投到 ${device.name}…`);
 
         try {
-            await sendCurrent(localPosition());
+            const result = await sendCurrent(localPosition());
             if (dp && dp.video) {
                 dp.pause();
             }
             updateBar();
             startPolling();
-            showToast('已投到电视，手机可以锁屏了');
+            showToast(result.adFiltered ? '已投到电视（已去广告），手机可以锁屏了' : '已投到电视，手机可以锁屏了');
         } catch (error) {
             state.device = null;
             hideBar();

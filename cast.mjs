@@ -1,5 +1,6 @@
 import dgram from 'dgram';
 import os from 'os';
+import { encodeToken, filteredPlaylist } from './hls.mjs';
 
 const SSDP_ADDRESS = '239.255.255.250';
 const SSDP_PORT = 1900;
@@ -7,6 +8,11 @@ const AVTRANSPORT = 'urn:schemas-upnp-org:service:AVTransport:1';
 const DEVICE_TTL_MS = 10 * 60 * 1000;
 
 const devices = new Map();
+let serverPort = 8899;
+
+export function configure({ port }) {
+  serverPort = port;
+}
 
 function isPrivateIPv4(address) {
   return /^10\./.test(address)
@@ -202,15 +208,37 @@ function fromTimestamp(value) {
   return parts[0] * 3600 + parts[1] * 60 + parts[2];
 }
 
-export async function play(deviceId, { url, title = 'LibreTV', position = 0 }) {
-  if (!/^https?:\/\//i.test(url || '')) {
+function localAddressFor(host) {
+  const addresses = lanAddresses();
+  const prefix = host.split('.').slice(0, 3).join('.') + '.';
+  return addresses.find((address) => address.startsWith(prefix)) || addresses[0];
+}
+
+async function adFreeUrl(device, url) {
+  const address = localAddressFor(device.host);
+  if (!address) {
+    return null;
+  }
+  try {
+    await filteredPlaylist(url);
+  } catch (error) {
+    console.warn('[cast] 去广告失败，改投原始地址:', error.message);
+    return null;
+  }
+  return `http://${address}:${serverPort}/api/hls/${encodeToken(url)}/index.m3u8`;
+}
+
+export async function play(deviceId, { url: sourceUrl, title = 'LibreTV', position = 0, adFilter = true }) {
+  if (!/^https?:\/\//i.test(sourceUrl || '')) {
     throw Object.assign(new Error('播放地址无效。'), { status: 400 });
   }
 
   const device = getDevice(deviceId);
   await soap(device, 'Stop', { InstanceID: 0 }).catch(() => {});
 
-  const isHls = /\.m3u8(\?|$)/i.test(url);
+  const isHls = /\.m3u8(\?|$)/i.test(sourceUrl);
+  const filteredUrl = isHls && adFilter ? await adFreeUrl(device, sourceUrl) : null;
+  const url = filteredUrl || sourceUrl;
   const attempts = isHls
     ? [didl(url, title, 'application/vnd.apple.mpegurl'), didl(url, title, 'video/mp4'), '']
     : [didl(url, title, 'video/mp4'), ''];
@@ -241,7 +269,7 @@ export async function play(deviceId, { url, title = 'LibreTV', position = 0 }) {
     }, 4000);
   }
 
-  return { device: device.name };
+  return { device: device.name, adFiltered: Boolean(filteredUrl) };
 }
 
 export async function control(deviceId, action, seconds) {
